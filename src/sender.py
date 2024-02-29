@@ -14,7 +14,7 @@ exit_signal = ExitSignal()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 port = 9000
-server_address = ('10.223.75.168', port)
+server_address = ('192.168.1.108', port)
 ctrl = controller.GamepadController(exit_signal)  # Pass exit_signal to the controller
 
 # Modify the GamepadController to check for exit_signal.exit in its loop
