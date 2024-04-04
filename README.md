@@ -21,3 +21,8 @@ after install a new library, update the environment.yml file with the following 
 ```bash
     conda env export --no-builds > environment.yml
 ```
+
+# Run the code when you developping with hot reload using watchdog
+```bash
+    python src/auto_reload.py . python src/webGUI.py
+```
