@@ -24,5 +24,5 @@ after install a new library, update the environment.yml file with the following 
 
 # Run the code when you developping with hot reload using watchdog
 ```bash
-    python src/auto_reload.py . python src/webGUI.py
+    python3 src/auto_reload.py . python3 src/webGUI.py
 ```
