@@ -3,8 +3,8 @@ import numpy as np
 import cv2
 
 # Constants for easy adjustments
-IP = '127.0.0.1'
-PORT = 9001
+IP = ''
+PORT = 9002
 BUFFER_SIZE = 65535
 
 def receive_udp_data(ip=IP, port=PORT, buffer_size=BUFFER_SIZE):
