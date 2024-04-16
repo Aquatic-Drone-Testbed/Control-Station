@@ -1,3 +1,6 @@
+# this file use for auto/hot-reload the webGUI using the watchdog. 
+# without this, we need to manually re-run the webGUI script everytime we did some change.
+
 import sys
 import subprocess
 from watchdog.observers import Observer
