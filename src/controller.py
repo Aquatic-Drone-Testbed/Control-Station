@@ -3,7 +3,7 @@ import time
 
 class GamepadController:
     def __init__(self, exit_signal):
-        print(f"TEST {type(exit_signal)}")
+        #print(f"TEST {type(exit_signal)}")
         self.send_data = ""
         self.exit_signal = exit_signal  # Correctly receive and store the exit signal
         print("Gamepad Controller initialized. Press CTRL+C to exit. You can disconnect and reconnect the gamepad.")
@@ -48,11 +48,11 @@ class GamepadController:
             case _:
                 print(f"Unhandled Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
 
-    def process_event_joystick(self, event):
+    def process_event_joystick(self, event)->str:
         """Process individual gamepad joystick event."""
-        if event.code in ('ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY"):
-            print(f"Joystick Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
-            return f"CTRL:{event.code},{event.state}"
+        print(f"Joystick Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
+        controller_magnitude = round(int(event.state)/93.7)
+        return f"CTRL:{event.code},{str(controller_magnitude)}"
 
     def controller_loop(self):
         print("Main loop entered to process gamepad events.")
@@ -63,7 +63,8 @@ class GamepadController:
                     if event.ev_type == 'Key':
                         self.process_event_button(event)
                     elif event.ev_type == "Absolute":
-                        self.send_data += self.process_event_joystick(event) + "\n"  # Accumulate data if needed
+                        if (event.code == 'ABS_Y') or (event.code == "ABS_RX"): #'ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY" only want ABS_Y and ABS_RX
+                            self.send_data = self.process_event_joystick(event)  # Accumulate data if needed
             else:
                 self.wait_for_gamepad_reconnection()
                 if self.exit_signal.exit:  # Check the exit signal again after reconnection
