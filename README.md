@@ -19,5 +19,5 @@ activate the environment
 
 after install a new library, update the environment.yml file with the following command
 ```bash
-    conda env export --no-builds > environment.yml
+    conda env export --no-builds > environment-win.yml
 ```
