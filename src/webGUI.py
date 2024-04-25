@@ -32,16 +32,30 @@ def indexPage():
 
     # video GUI screen with HTML & JavaScript for WebSocket
     video_html = """
-    <h3>Video Stream</h3>
-    <img id="videoFrame" src="" alt="Video Stream">
+    <h3>Camera Video Stream</h3>
+    <img id="cameraVideoFrame" class="videoFrame" src="" alt="Camera Video Stream">
+    <h3>Radar Video Stream</h3>
+    <img id="radarVideoFrame" class="videoFrame" src="" alt="Radar Video Stream">
     <script>
         const socket = new WebSocket('ws://localhost:8765');
         
         socket.onmessage = function(event) {
-            const arrayBuffer = event.data;
-            const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+            
+            // The first part of the message is the type identifier followed by a colon
+            const typeIdentifierLength = 6; // Length of 'camera:' or 'radar:'
+            
+            // Get the stream type from the identifier
+            const streamType = event.data.slice(0, typeIdentifierLength).decode();
+            // Extract the image data
+            const imageData = event.data.slice(typeIdentifierLength);
+            const blob = new Blob([imageData], { type: 'image/jpeg' });
             const url = URL.createObjectURL(blob);
-            document.getElementById('videoFrame').src = url;
+
+            if (streamType === 'camera') {
+                document.getElementById('mainVideoFrame').src = url;
+            } else if (streamType === 'radar') {
+                document.getElementById('radarVideoFrame').src = url;
+            }
         };
         
         socket.onclose = function(event) {
