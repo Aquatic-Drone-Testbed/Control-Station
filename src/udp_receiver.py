@@ -16,7 +16,7 @@ BUFFER_SIZE = 65535
 image_queue = queue.Queue()
 
 # Function to receive and decode video data from boat
-def receive_video():   
+def receive_camera_video():   
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind(('', VIDEO_PORT))
         print(f"Listening for video on port {VIDEO_PORT}...")
@@ -26,17 +26,31 @@ def receive_video():
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
                 # Put the image into the queue instead of displaying it directly
-                image_queue.put(img)
+                image_queue.put(('camera', img))
             else:
                 print("Could not decode video data")
+
+def receive_radar_video():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(('', RADAR_PORT))
+        print(f"Listening for radar on port {RADAR_PORT}...")
+        while True:
+            data, addr = sock.recvfrom(BUFFER_SIZE)
+            print(f"Received radar packet from {addr}, {len(data)} bytes")
+            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            if img is not None:
+                image_queue.put(('radar', img))
+            else:
+                print("Could not decode radar data")
 
 # Function to send the video to webGUI using WebSocket
 async def send_video(websocket, path):
     while True:
         if not image_queue.empty():
-            img = image_queue.get()
+            stream_type, img = image_queue.get()
             _, buffer = cv2.imencode('.jpg', img)
-            await websocket.send(buffer.tobytes())
+            message = (stream_type + ':').encode() + buffer.tobytes()
+            await websocket.send(message)
         else:
             await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
 
@@ -61,8 +75,9 @@ def receive_gps():
 # Main function
 def main():
     # Start the threads for video and GPS data reception
-    threading.Thread(target=receive_video, daemon=True).start()
+    threading.Thread(target=receive_camera_video, daemon=True).start()
     threading.Thread(target=receive_gps, daemon=True).start()
+    threading.Thread(target=receive_radar_video, daemon=True).start()
     # threading.Thread(target=receive_gps, daemon=True).start() # for test perpose, it doesnt work now
     
     # Start WebSocket server
