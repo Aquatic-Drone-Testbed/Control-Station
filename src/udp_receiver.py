@@ -39,20 +39,26 @@ def receive_radar_video():
             print(f"Received radar packet from {addr}, {len(data)} bytes")
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
-                image_queue.put(('radar', img))
+                image_queue.put(('_radar', img))
             else:
                 print("Could not decode radar data")
 
 # Function to send the video to webGUI using WebSocket
 async def send_video(websocket, path):
-    while True:
-        if not image_queue.empty():
-            stream_type, img = image_queue.get()
-            _, buffer = cv2.imencode('.jpg', img)
-            message = (stream_type + ':').encode() + buffer.tobytes()
-            await websocket.send(message)
-        else:
-            await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
+    print("start send_video()...")
+    try:
+        while True:
+            if not image_queue.empty():
+                stream_type, img = image_queue.get()
+                _, buffer = cv2.imencode('.jpg', img)
+                message = (stream_type + ':').encode() + buffer.tobytes()
+                # print(f'sending message: {message}\n')
+                await websocket.send(message)
+            else:
+                # print("queue is empty")
+                await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
+    except websockets.exceptions.ConnectionClosed as e:
+        print(f'WebSocket connection closed: {e}')
 
 # Function to receive and print GPS data
 def receive_gps():
@@ -63,14 +69,22 @@ def receive_gps():
             data, addr = sock.recvfrom(BUFFER_SIZE)
             print(f"Received GPS data: {data.decode()} from {addr}")
 
-# for test perpose, it doesnt work now
-# def display_video():
-#     while True:
-#         if not image_queue.empty():
-#             img = image_queue.get()
-#             cv2.imshow('UDP Stream', img)
-#             if cv2.waitKey(1) & 0xFF == ord('q'):
-#                 break
+# for test perpose
+def display_video():
+    cv2.namedWindow("Camera Stream", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("Radar Stream", cv2.WINDOW_NORMAL)
+    while True:
+        if not image_queue.empty():
+            stream_type, img = image_queue.get()
+            if stream_type == 'camera':
+                cv2.imshow('Camera Stream', img)
+            elif stream_type == '_radar':
+                cv2.imshow('Radar Stream', img)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
+                break
+
+    cv2.destroyAllWindows()
 
 # Main function
 def main():
@@ -78,12 +92,12 @@ def main():
     threading.Thread(target=receive_camera_video, daemon=True).start()
     threading.Thread(target=receive_gps, daemon=True).start()
     threading.Thread(target=receive_radar_video, daemon=True).start()
-    # threading.Thread(target=receive_gps, daemon=True).start() # for test perpose, it doesnt work now
     
     # Start WebSocket server
     start_server = websockets.serve(send_video, 'localhost', 8765)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
+    # display_video() # for test perpose, it can only run in main threading
 
 if __name__ == "__main__":
     main()

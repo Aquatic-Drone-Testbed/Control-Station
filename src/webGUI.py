@@ -9,53 +9,120 @@ def indexPage():
     # CSS to improve the layout and appearance
     style = """
     <style>
-        body { 
+        /* CSS Reset */
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body, .pywebio, #output-container, .container {
+            width: 100%; 
+            height: 100%;
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        body {
             font-family: Arial, sans-serif;
-            margin: 40px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
             background-color: #f4f4f9;
             color: #333;
         }
-        #videoFrame { 
-            width: 640px; 
-            height: 480px; 
-            border: 5px solid #333; 
-            display: block; 
-            margin: 20px auto;
+
+        .videoContainer {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            align-items: center;
+            flex-wrap: nowrap;
+            padding: 0 20px;
         }
+
+        .videoContainer > div {
+            flex: 1;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .videoFrame { 
+            width: 100%;
+            /* height: 480px; */
+            border: 5px solid #333; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-radius: 8px; 
+        }
+
         h3 { 
             text-align: center; 
             color: #444; 
+            margin-bottom: 10px;
         }
     </style>
     """
+    
     put_html(style)
 
     # video GUI screen with HTML & JavaScript for WebSocket
     video_html = """
-    <h3>Camera Video Stream</h3>
-    <img id="cameraVideoFrame" class="videoFrame" src="" alt="Camera Video Stream">
-    <h3>Radar Video Stream</h3>
-    <img id="radarVideoFrame" class="videoFrame" src="" alt="Radar Video Stream">
+    <div class="videoContainer">
+        <div>
+            <h3>Camera Video Stream</h3>
+            <img id="cameraVideoFrame" class="videoFrame" src="" alt="Camera Video Stream">
+        </div>
+        <div>
+            <h3>Radar Video Stream</h3>
+            <img id="radarVideoFrame" class="videoFrame" src="" alt="Radar Video Stream">
+        </div>
+    </div>
     <script>
         const socket = new WebSocket('ws://localhost:8765');
         
-        socket.onmessage = function(event) {
-            
-            // The first part of the message is the type identifier followed by a colon
-            const typeIdentifierLength = 6; // Length of 'camera:' or 'radar:'
-            
-            // Get the stream type from the identifier
-            const streamType = event.data.slice(0, typeIdentifierLength).decode();
-            // Extract the image data
-            const imageData = event.data.slice(typeIdentifierLength);
-            const blob = new Blob([imageData], { type: 'image/jpeg' });
-            const url = URL.createObjectURL(blob);
+        socket.onopen = function(e) {
+            console.log("Connection established");
+        };
 
-            if (streamType === 'camera') {
-                document.getElementById('mainVideoFrame').src = url;
-            } else if (streamType === 'radar') {
-                document.getElementById('radarVideoFrame').src = url;
+        socket.onmessage = function(event) {
+            console.log("Message from server ", event.data);
+        };
+
+        socket.onclose = function(event) {
+            if (event.wasClean) {
+                console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+            } else {
+                console.log('[close] Connection died');
             }
+        };
+
+        socket.onerror = function(error) {
+            console.log(`[error] ${error.message}`);
+        };
+
+        socket.onmessage = function(event) {
+            // console.log("Received binary data"); // Confirm binary data reception
+            let reader = new FileReader(); // event.data is a Blob of binary data
+            reader.onload = function() {
+                // console.log("ArrayBuffer loaded"); // Confirm ArrayBuffer is loaded
+                let arrayBuffer = this.result;
+                let dataView = new DataView(arrayBuffer);
+                let decoder = new TextDecoder("ascii");
+
+                // Decode the first 6 bytes as the label, hard-code all type to be 6 bytes
+                let label = decoder.decode(dataView.buffer.slice(0, 6)).trim();
+                // console.log("Label decoded:", label); // Display the decoded label
+
+                let imageBlob = new Blob([dataView.buffer.slice(7)], {type: 'image/jpeg'});
+                let imageUrl = URL.createObjectURL(imageBlob);
+
+                if (label === 'camera') {
+                    document.getElementById('cameraVideoFrame').src = imageUrl;
+                } else if (label === '_radar') {
+                    document.getElementById('radarVideoFrame').src = imageUrl;
+                }
+            };
+            reader.readAsArrayBuffer(event.data);
         };
         
         socket.onclose = function(event) {
@@ -72,6 +139,7 @@ def indexPage():
         };
     </script>
     """
+
     put_html(video_html)
 
 # TODO:
