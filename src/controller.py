@@ -63,7 +63,7 @@ class GamepadController:
                     if event.ev_type == 'Key':
                         self.process_event_button(event)
                     elif event.ev_type == "Absolute":
-                        if (event.code == 'ABS_Y') or (event.code == "ABS_RX"): #'ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY" only want ABS_Y and ABS_RX
+                        if (event.code == 'ABS_Y') or (event.code == "ABS_X"): #'ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY" only want ABS_Y and ABS_RX
                             self.send_data = self.process_event_joystick(event)  # Accumulate data if needed
             else:
                 self.wait_for_gamepad_reconnection()

@@ -19,5 +19,12 @@ activate the environment
 
 after install a new library, update the environment.yml file with the following command
 ```bash
+    conda env export --no-builds > environment-mac.yml
     conda env export --no-builds > environment-win.yml
+```
+
+# Run the code when you developping with hot reload using watchdog
+```bash
+    python3 src/auto_reload.py . python3 src/webGUI.py
+    
 ```
