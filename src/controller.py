@@ -36,7 +36,8 @@ class GamepadController:
             case "BTN_EAST":
                 action = "pressed" if event.state else "released"
                 print(f"B (East) Button {action}")
-                return "TOGGLE: CAM"
+                if event.state:
+                    return "TOGGLE:CAM TOGGLE"
             case "BTN_SOUTH":
                 action = "pressed" if event.state else "released"
                 print(f"A (South Button) {action}")
