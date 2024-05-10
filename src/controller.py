@@ -36,6 +36,7 @@ class GamepadController:
             case "BTN_EAST":
                 action = "pressed" if event.state else "released"
                 print(f"B (East) Button {action}")
+                return "TOGGLE: CAM"
             case "BTN_SOUTH":
                 action = "pressed" if event.state else "released"
                 print(f"A (South Button) {action}")
@@ -61,7 +62,7 @@ class GamepadController:
             if events:
                 for event in events:
                     if event.ev_type == 'Key':
-                        self.process_event_button(event)
+                        self.send_data = self.process_event_button(event) 
                     elif event.ev_type == "Absolute":
                         if (event.code == 'ABS_Y') or (event.code == "ABS_X"): #'ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY" only want ABS_Y and ABS_RX
                             self.send_data = self.process_event_joystick(event)  # Accumulate data if needed
