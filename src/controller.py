@@ -41,6 +41,8 @@ class GamepadController:
             case "BTN_SOUTH":
                 action = "pressed" if event.state else "released"
                 print(f"A (South Button) {action}")
+                if event.state:
+                    return "RADAR TOGGLE: stop_scan"
             case "BTN_WEST":
                 action = "pressed" if event.state else "released"
                 print(f"X (West Button) {action}")
@@ -48,7 +50,7 @@ class GamepadController:
                 action = "pressed" if event.state else "released"
                 print(f"Y (North Button) {action}")
                 if event.state:
-                    return "RADAR TOGGLE: "
+                    return "RADAR TOGGLE: start_scan"
             case _:
                 print(f"Unhandled Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
 
