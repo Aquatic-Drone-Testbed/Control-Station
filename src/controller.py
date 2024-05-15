@@ -51,17 +51,7 @@ class GamepadController:
                 action = "pressed" if event.state else "released"
                 print(f"Y (North Button) {action}")
                 if event.state:
-<<<<<<< HEAD
                     return "RADAR TOGGLE: start_scan"
-=======
-                    return "RADAR TOGGLE: "
-            case "BTN_THUMBL":
-                action = "pressed" if event.state else "released"
-                print(f"Left Joystick Button {action}")
-            case "BTN_THUMBR":
-                action = "pressed" if event.state else "released"
-                print(f"Right Joystick Button {action}")
->>>>>>> 58a348ad1bcd46328381078324e494f577cea5eb
             case _:
                 print(f"Unhandled Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
 
