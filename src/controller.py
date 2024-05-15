@@ -3,7 +3,6 @@ import time
 
 class GamepadController:
     def __init__(self, exit_signal):
-        #print(f"TEST {type(exit_signal)}")
         self.send_data = ""
         self.exit_signal = exit_signal  # Correctly receive and store the exit signal
         print("Gamepad Controller initialized. Press CTRL+C to exit. You can disconnect and reconnect the gamepad.")
@@ -46,11 +45,23 @@ class GamepadController:
             case "BTN_WEST":
                 action = "pressed" if event.state else "released"
                 print(f"X (West Button) {action}")
+                if event.state:
+                    return "RADAR RANGE: "
             case "BTN_NORTH":
                 action = "pressed" if event.state else "released"
                 print(f"Y (North Button) {action}")
                 if event.state:
+<<<<<<< HEAD
                     return "RADAR TOGGLE: start_scan"
+=======
+                    return "RADAR TOGGLE: "
+            case "BTN_THUMBL":
+                action = "pressed" if event.state else "released"
+                print(f"Left Joystick Button {action}")
+            case "BTN_THUMBR":
+                action = "pressed" if event.state else "released"
+                print(f"Right Joystick Button {action}")
+>>>>>>> 58a348ad1bcd46328381078324e494f577cea5eb
             case _:
                 print(f"Unhandled Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
 
