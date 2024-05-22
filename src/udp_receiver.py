@@ -11,11 +11,19 @@ import json
 GPS_PORT = 9001
 VIDEO_PORT = 9002
 RADAR_PORT = 9003
+DIAGNOSTIC_PORT = 20000
 BUFFER_SIZE = 65535
 
 # Create a queue for thread-safe image transfer
 image_queue = queue.Queue()
 diagnostics_queue = queue.Queue()
+
+camera_status = False
+gps_status = "Disconnected"
+thruster_status = False
+IMU_status = False
+radar_status = "Disconnected"
+pi_status = "Disconnected"
 
 # Function to receive and decode video data from boat
 def receive_camera_video():   
@@ -24,18 +32,13 @@ def receive_camera_video():
         print(f"Listening for video on port {VIDEO_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-
-            if data == b"Camera On":
-                print(f"Camera is on from {addr}")
-                diagnostics_queue.put({'camera': 'On'})
+            print(f"Received video packet from {addr}, {len(data)} bytes")
+            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            if img is not None:
+                # Put the image into the queue instead of displaying it directly
+                image_queue.put(('camera', img))
             else:
-                print(f"Received video packet from {addr}, {len(data)} bytes")
-                img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-                if img is not None:
-                    # Put the image into the queue instead of displaying it directly
-                    image_queue.put(('camera', img))
-                else:
-                    print("Could not decode video data")
+                print("Could not decode video data")
 
 def receive_radar_video():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -60,11 +63,6 @@ async def send_video(websocket, path):
                 _, buffer = cv2.imencode('.jpg', img)
                 message = (stream_type + ':').encode() + buffer.tobytes()
                 await websocket.send(message)
-            if not diagnostics_queue.empty():
-                diagnostics = diagnostics_queue.get()
-                diagnostics_message = json.dumps({'type': 'diagnostics', 'data': diagnostics})
-                print(f"Sending diagnostics message: {diagnostics_message}")  # Log diagnostic data
-                await websocket.send(diagnostics_message)
             else:
                 # print("queue is empty")
                 await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
@@ -97,14 +95,35 @@ def display_video():
 
     cv2.destroyAllWindows()
 
-def display_diagnostics():
-    pass
+def receive_diagnostics():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(('', DIAGNOSTIC_PORT))
+        print(f"Listening for diagnostics on port {DIAGNOSTIC_PORT}...")
+        while True:
+            data, addr = sock.recvfrom(BUFFER_SIZE)
+            print(f"Received  data: {data.decode()} from {addr}")
+
+
+# if not diagnostics_queue.empty():
+#                 diagnostics = diagnostics_queue.get()
+#                 diagnostics_message = json.dumps({'type': 'diagnostics', 'data': diagnostics})
+#                 print(f"Sending diagnostics message: {diagnostics_message}")  # Log diagnostic data
+#                 await websocket.send(diagnostics_message)
+            
+            # if data == b"GPS Connected":
+            #     print(f"GPS is Connected from {addr}")
+            #     diagnostics_queue.put({'gps': 'Connected'})
+            # if data == b"GPS Not Connected":
+            #     print(f"GPS is Not Connected from {addr}")
+            #     diagnostics_queue.put({'gps': 'Not Connected'})
+
 # Main function
 def main():
     # Start the threads for video and GPS data reception
-    threading.Thread(target=receive_camera_video, daemon=True).start()
     threading.Thread(target=receive_gps, daemon=True).start()
+    threading.Thread(target=receive_camera_video, daemon=True).start()
     threading.Thread(target=receive_radar_video, daemon=True).start()
+    threading.Thread(target=receive_diagnostics, daemon=True).start()
     
     # Start WebSocket server
     start_server = websockets.serve(send_video, 'localhost', 8765)
