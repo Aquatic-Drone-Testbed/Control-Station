@@ -6,13 +6,13 @@ def indexPage():
     # Title
     put_text("Unmanned Surface Vessel Control Station").style('font-size: 24px; font-weight: bold; text-align: center; margin-top: 20px;')
 
-    # CSS to improve the layout and appearance
     style = """
     <style>
         /* CSS Reset */
         * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
 
         html, body, .pywebio, #output-container, .container {
@@ -37,8 +37,9 @@ def indexPage():
             grid-template-columns: 1fr 1fr;
             grid-template-rows: 1fr 1fr;
             gap: 20px;
-            width: 100%;
-            padding: 20px;
+            width: 80%;
+            max-width: 1200px;
+            margin: 20px auto;
         }
 
         .videoSection, .diagnosticsSection {
@@ -90,6 +91,19 @@ def indexPage():
             color: #444; 
             margin-bottom: 10px;
         }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+                gap: 10px;
+            }
+
+            .diagnosticsPanel {
+                grid-template-columns: 1fr;
+            }
+        }
+
     </style>
     """
     
@@ -105,25 +119,25 @@ def indexPage():
         <div class="diagnosticsSection">
             <h3>Diagnostics Panel</h3>
             <div id="diagnosticsPanel" class="diagnosticsPanel">
-                <div class="diagnosticCard">
+                <div class="diagnosticCard" id="cameraCard">
                     <img src="https://img.icons8.com/ios-filled/50/000000/camera.png" alt="Camera Icon">
                     <div class="label">Camera</div>
                     <div id="cameraStatus" class="value">Off</div>
                 </div>
-                <div class="diagnosticCard">
+                <div class="diagnosticCard" id="gpsCard">
                     <img src="https://img.icons8.com/ios-filled/50/000000/gps-device.png" alt="GPS Icon">
                     <div class="label">GPS</div>
-                    <div id="gpsStatus" class="value">Off</div>
+                    <div id="gpsStatus" class="value">Not Connected</div>
                 </div>
-                <div class="diagnosticCard">
+                <div class="diagnosticCard" id="imuCard">
                     <img src="https://img.icons8.com/ios-filled/50/000000/gyroscope.png" alt="IMU Icon">
                     <div class="label">IMU</div>
                     <div id="imuStatus" class="value">Off</div>
                 </div>
-                <div class="diagnosticCard">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/boat.png" alt="Thruster Icon">
+                <div class="diagnosticCard" id="thrusterCard">
+                    <img src="https://cdn-icons-png.freepik.com/512/419/419108.png" alt="Thruster Icon">
                     <div class="label">Thruster</div>
-                    <div id="thrusterStatus" class="value">Off</div>
+                    <div id="thrusterStatus" class="value">Off</div> 
                 </div>
             </div>
         </div>
@@ -137,77 +151,54 @@ def indexPage():
         </div>
     </div>
     <script>
+    let cameraStatusElement = document.getElementById("cameraStatus");
+    let cameraCard = document.getElementById("cameraCard");
+    let gpsStatusElement = document.getElementById("gpsStatus");
+    let gpsCard = document.getElementById("gpsCard");
+
     const socket = new WebSocket('ws://localhost:8765');
     
-    socket.onopen = function(e) {
-        console.log("Connection established");
-    };
-
     socket.onmessage = function(event) {
-        // Check if the received data is a Blob (binary data) or a string (text data)
-        if (typeof event.data === 'string') {
-            // Handle text data (diagnostics)
-            try {
-                let json = JSON.parse(event.data);
-                if (json.type === 'diagnostics') {
-                    console.log('Diagnostics received:', json.data); // Log diagnostic data
-                    if (json.data.camera) {
-                        let cameraElement = document.getElementById('cameraStatus');
-                        if (cameraElement) {
-                            cameraElement.innerText = json.data.camera;
-                        }
-                    }
-                    if (json.data.gps) {
-                        let gpsElement = document.getElementById('gpsStatus');
-                        if (gpsElement) {
-                            gpsElement.innerText = json.data.gps;
-                        }
-                    }
-                    // Add other diagnostics updates here with similar checks
-                }
-            } catch (e) {
-                console.error('Failed to parse JSON:', e);
+            const message = event.data;
+            if (message.startsWith("camera:")) {
+                const imgBlob = message.slice(7); // Get the image part of the message
+                const imgUrl = URL.createObjectURL(new Blob([imgBlob], { type: 'image/jpeg' }));
+                document.getElementById('cameraVideoFrame').src = imgUrl;
+            } 
+            if (message.startsWith("_radar:")) {
+                const imgBlob = message.slice(7); // Get the image part of the message
+                const imgUrl = URL.createObjectURL(new Blob([imgBlob], { type: 'image/jpeg' }));
+                document.getElementById('rawRadarVideoFrame').src = imgUrl;
             }
-        } else {
-            // Handle binary data (images)
-            let reader = new FileReader(); // event.data is a Blob of binary data
-            reader.onload = function() {
-                let arrayBuffer = this.result;
-                let dataView = new DataView(arrayBuffer);
-                let decoder = new TextDecoder("ascii");
-
-                // Decode the first 6 bytes as the label, hard-code all type to be 6 bytes
-                let label = decoder.decode(dataView.buffer.slice(0, 6)).trim();
-
-                if (label === 'camera' || label === '_radar') {
-                    let imageBlob = new Blob([dataView.buffer.slice(7)], {type: 'image/jpeg'});
-                    let imageUrl = URL.createObjectURL(imageBlob);
-
-                    if (label === 'camera') {
-                        document.getElementById('cameraVideoFrame').src = imageUrl;
-                        document.getElementById('rawRadarVideoFrame').src = imageUrl;
-                        document.getElementById('filteredRadarVideoFrame').src = imageUrl;
-                    } else if (label === '_radar') {
-                        document.getElementById('rawRadarVideoFrame').src = imageUrl;
-                        document.getElementById('filteredRadarVideoFrame').src = imageUrl;
-                    }
+            else {
+                const data = JSON.parse(message);
+                if (data.type === "diagnostics") {
+                    updateDiagnostics(data.data);
                 }
-            };
-            reader.readAsArrayBuffer(event.data);
+            }
+        };
+
+    function updateDiagnostics(diagnostics) {
+        if (diagnostics.camera) {
+            cameraStatusElement.textContent = diagnostics.camera;
+            cameraCard.classList.toggle('active', diagnostics.camera === 'On');
+            cameraCard.classList.toggle('inactive', diagnostics.camera !== 'On');
         }
+        if (diagnostics.gps) {
+            gpsStatusElement.textContent = diagnostics.gps;
+            gpsCard.classList.toggle('active', diagnostics.gps === 'Connected');
+            gpsCard.classList.toggle('inactive', diagnostics.gps !== 'Connected');
+        }
+        // Update GPS status and other diagnostics similarly
+    }
+
+    socket.onopen = function() {
+        console.log("WebSocket connection established.");
     };
 
     socket.onclose = function(event) {
-        if (event.wasClean) {
-            console.log(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-        } else {
-            console.log('[close] Connection died');
-        }
-    };
-
-    socket.onerror = function(error) {
-        console.log(`[error] ${error.message}`);
-    };
+        console.log("WebSocket connection closed:", event);
+    };    
 </script>
 
     """

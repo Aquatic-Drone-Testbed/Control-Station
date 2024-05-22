@@ -34,22 +34,22 @@ class GamepadController:
         match event.code:
             case "BTN_EAST":
                 action = "pressed" if event.state else "released"
-                print(f"B (East) Button {action}")
+                print(f"A (East) Button {action}")
                 if event.state:
                     return "CAM TOGGLE:CAM TOGGLE"
             case "BTN_SOUTH":
                 action = "pressed" if event.state else "released"
-                print(f"A (South Button) {action}")
+                print(f"B (South Button) {action}")
                 if event.state:
                     return "RADAR TOGGLE: stop_scan"
             case "BTN_WEST":
                 action = "pressed" if event.state else "released"
-                print(f"X (West Button) {action}")
+                print(f"Y (West Button) {action}")
                 if event.state:
                     return "RADAR RANGE: "
             case "BTN_NORTH":
                 action = "pressed" if event.state else "released"
-                print(f"Y (North Button) {action}")
+                print(f"X (North Button) {action}")
                 if event.state:
                     return "RADAR TOGGLE: start_scan"
             case _:

@@ -28,6 +28,9 @@ def receive_camera_video():
             if data == b"Camera On":
                 print(f"Camera is on from {addr}")
                 diagnostics_queue.put({'camera': 'On'})
+            if data == b"Camera Off":
+                print(f"Camera is off from {addr}")
+                diagnostics_queue.put({'camera': 'Off'})
             else:
                 print(f"Received video packet from {addr}, {len(data)} bytes")
                 img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
@@ -78,6 +81,14 @@ def receive_gps():
         print(f"Listening for GPS data on port {GPS_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
+
+            if data == b"GPS Connected":
+                print(f"GPS is Connected from {addr}")
+                diagnostics_queue.put({'gps': 'Connected'})
+            if data == b"GPS Not Connected":
+                print(f"GPS is Not Connected from {addr}")
+                diagnostics_queue.put({'gps': 'Not Connected'})
+
             print(f"Received GPS data: {data.decode()} from {addr}")
 
 # for test perpose
@@ -99,6 +110,7 @@ def display_video():
 
 def display_diagnostics():
     pass
+
 # Main function
 def main():
     # Start the threads for video and GPS data reception
