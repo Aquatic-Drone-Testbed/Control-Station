@@ -11,6 +11,7 @@ pyobjc-framework-Quartz==10.2
 pyusb==1.2.1
 pywebio==1.8.3
 six==1.16.0
+tornado==6.4
 ua-parser==0.18.0
 user-agents==2.2.0
 watchdog==4.0.0
