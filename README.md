@@ -7,9 +7,9 @@ crate a new conda environment with the following command
 ```bash
     conda create --name capstone python=3.11.7
 ```
-or install the environment from the environment.yml file (recommended)
+or install the libraries from the `requirements.txt` file (recommended)
 ```bash
-    conda env create -f environment.yml
+    pip install -r requirements.txt
 ```
 
 activate the environment
@@ -19,12 +19,24 @@ activate the environment
 
 after install a new library, update the environment.yml file with the following command
 ```bash
-    conda env export --no-builds > environment-mac.yml
-    conda env export --no-builds > environment-win.yml
+   pip freeze > requirements.txt
 ```
 
-# Run the code when you developping with hot reload using watchdog
+# How to run the Control-Station
+1. run the `udp_receiver`:
+
+```bash
+    python3 ./src/udp_receiver.py 
+```
+
+2. run the `webGUI`:
+
+```bash
+    python3 ./src/webGUI.py 
+```
+
+2. (Optional) Run the code when you developping with hot reload using watchdog
+
 ```bash
     python3 src/auto_reload.py . python3 src/webGUI.py
-    
 ```
