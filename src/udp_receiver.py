@@ -5,6 +5,7 @@ import asyncio
 import websockets
 import threading
 import queue
+import json
 
 # Constants for easy adjustments
 GPS_PORT = 9001
@@ -14,6 +15,7 @@ BUFFER_SIZE = 65535
 
 # Create a queue for thread-safe image transfer
 image_queue = queue.Queue()
+diagnostics_queue = queue.Queue()
 
 # Function to receive and decode video data from boat
 def receive_camera_video():   
@@ -22,13 +24,18 @@ def receive_camera_video():
         print(f"Listening for video on port {VIDEO_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received video packet from {addr}, {len(data)} bytes")
-            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-            if img is not None:
-                # Put the image into the queue instead of displaying it directly
-                image_queue.put(('camera', img))
+
+            if data == b"Camera On":
+                print(f"Camera is on from {addr}")
+                diagnostics_queue.put({'camera': 'On'})
             else:
-                print("Could not decode video data")
+                print(f"Received video packet from {addr}, {len(data)} bytes")
+                img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    # Put the image into the queue instead of displaying it directly
+                    image_queue.put(('camera', img))
+                else:
+                    print("Could not decode video data")
 
 def receive_radar_video():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -52,8 +59,12 @@ async def send_video(websocket, path):
                 stream_type, img = image_queue.get()
                 _, buffer = cv2.imencode('.jpg', img)
                 message = (stream_type + ':').encode() + buffer.tobytes()
-                # print(f'sending message: {message}\n')
                 await websocket.send(message)
+            if not diagnostics_queue.empty():
+                diagnostics = diagnostics_queue.get()
+                diagnostics_message = json.dumps({'type': 'diagnostics', 'data': diagnostics})
+                print(f"Sending diagnostics message: {diagnostics_message}")  # Log diagnostic data
+                await websocket.send(diagnostics_message)
             else:
                 # print("queue is empty")
                 await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
@@ -86,6 +97,8 @@ def display_video():
 
     cv2.destroyAllWindows()
 
+def display_diagnostics():
+    pass
 # Main function
 def main():
     # Start the threads for video and GPS data reception
