@@ -1,0 +1,17 @@
+ffmpeg==1.4
+inputs==0.5
+numpy==1.26.4
+opencv-python==4.9.0.80
+pygame==2.5.2
+pyobjc-core==10.2
+pyobjc-framework-ApplicationServices==10.2
+pyobjc-framework-Cocoa==10.2
+pyobjc-framework-CoreText==10.2
+pyobjc-framework-Quartz==10.2
+pyusb==1.2.1
+pywebio==1.8.3
+six==1.16.0
+ua-parser==0.18.0
+user-agents==2.2.0
+watchdog==4.0.0
+websockets==12.0
