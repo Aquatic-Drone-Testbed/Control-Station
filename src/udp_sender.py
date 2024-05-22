@@ -14,8 +14,8 @@ exit_signal = ExitSignal()
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 port = 9000 # this's the only port of radio-2 that accpet the incoming TCP/UDP datagram
-# ip = '10.223.75.168' # this's the IP of radio-2
-ip = '172.31.154.104' # this is the WSL IP, delete line when testing on pi 
+ip = '10.223.75.168' # this's the IP of radio-2
+# ip = '172.31.154.104' # this is the WSL IP, delete line when testing on pi 
 server_address = (ip, port)
 ctrl = controller.GamepadController(exit_signal)  # Pass exit_signal to the controller
 
