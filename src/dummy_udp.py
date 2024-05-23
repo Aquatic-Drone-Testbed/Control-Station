@@ -18,14 +18,22 @@ def send_dummy_data():
             print(f"Sent message: {message}")
             time.sleep(2.5)
 
-            message = b"Camera: On"
+            message = b"GPS: Has Fix"
             sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
             print(f"Sent message: {message}")
             time.sleep(2.5)
-            message = b"Camera: Off"
+            message = b"GPS: No Fix"
             sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
             print(f"Sent message: {message}")
             time.sleep(2.5)
 
+            message = b"Radar: Scanning"
+            sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
+            print(f"Sent message: {message}")
+            time.sleep(2.5)
+            message = b"Radar: Standby"
+            sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
+            print(f"Sent message: {message}")
+            time.sleep(2.5)
 if __name__ == "__main__":
     send_dummy_data()
