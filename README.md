@@ -1,5 +1,10 @@
 # Control-Station
-Control station code for remote operation of Unmanned-Surface-Vehicle(USV). 
+Control station code for remote operation of Unmanned-Surface-Vehicle(USV).  
+
+To run:
+```bash
+    ./run-control-station.sh
+```
 
 # install the required packages
 

@@ -22,13 +22,14 @@ def receive_camera_video():
         print(f"Listening for video on port {VIDEO_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received video packet from {addr}, {len(data)} bytes")
+            # print(f"Received video packet from {addr}, {len(data)} bytes")
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
                 # Put the image into the queue instead of displaying it directly
                 image_queue.put(('camera', img))
             else:
-                print("Could not decode video data")
+                # print("Could not decode video data")
+                pass
 
 def receive_radar_video():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -36,7 +37,7 @@ def receive_radar_video():
         print(f"Listening for radar on port {RADAR_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received radar packet from {addr}, {len(data)} bytes")
+            # print(f"Received radar packet from {addr}, {len(data)} bytes")
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
                 image_queue.put(('_radar', img))

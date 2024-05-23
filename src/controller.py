@@ -3,7 +3,6 @@ import time
 
 class GamepadController:
     def __init__(self, exit_signal):
-        #print(f"TEST {type(exit_signal)}")
         self.send_data = ""
         self.exit_signal = exit_signal  # Correctly receive and store the exit signal
         print("Gamepad Controller initialized. Press CTRL+C to exit. You can disconnect and reconnect the gamepad.")
@@ -36,15 +35,23 @@ class GamepadController:
             case "BTN_EAST":
                 action = "pressed" if event.state else "released"
                 print(f"B (East) Button {action}")
+                if event.state:
+                    return "CAM TOGGLE:CAM TOGGLE"
             case "BTN_SOUTH":
                 action = "pressed" if event.state else "released"
                 print(f"A (South Button) {action}")
+                if event.state:
+                    return "RADAR TOGGLE: stop_scan"
             case "BTN_WEST":
                 action = "pressed" if event.state else "released"
                 print(f"X (West Button) {action}")
+                if event.state:
+                    return "RADAR RANGE: "
             case "BTN_NORTH":
                 action = "pressed" if event.state else "released"
                 print(f"Y (North Button) {action}")
+                if event.state:
+                    return "RADAR TOGGLE: start_scan"
             case _:
                 print(f"Unhandled Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
 
@@ -61,7 +68,7 @@ class GamepadController:
             if events:
                 for event in events:
                     if event.ev_type == 'Key':
-                        self.process_event_button(event)
+                        self.send_data = self.process_event_button(event) 
                     elif event.ev_type == "Absolute":
                         if (event.code == 'ABS_Y') or (event.code == "ABS_X"): #'ABS_X', 'ABS_Y', "ABS_RX", "ABS_RY" only want ABS_Y and ABS_RX
                             self.send_data = self.process_event_joystick(event)  # Accumulate data if needed

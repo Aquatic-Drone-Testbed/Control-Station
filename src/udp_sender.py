@@ -30,7 +30,7 @@ try:
     while True:
         with lock:
             if ctrl.send_data:
-                print(f"sending data: {ctrl.send_data}")
+                # print(f"sending data: {ctrl.send_data}")
                 sent = sock.sendto(ctrl.send_data.encode(), server_address)
                 ctrl.send_data = ""  # Clear after sending
 except KeyboardInterrupt:
