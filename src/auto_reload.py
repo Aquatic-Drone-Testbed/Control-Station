@@ -3,6 +3,7 @@
 
 import sys
 import subprocess
+from watchdog import *
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 

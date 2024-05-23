@@ -33,13 +33,13 @@ def receive_camera_video():
         print(f"Listening for video on port {VIDEO_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            # print(f"Received video packet from {addr}, {len(data)} bytes")
+            print(f"Received video packet from {addr}, {len(data)} bytes")
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
                 # Put the image into the queue instead of displaying it directly
                 image_queue.put(('camera', img))
-                # image_queue.put(('_radar', img))
-                # image_queue.put(('__slam', img))
+                image_queue.put(('_radar', img))
+                image_queue.put(('__slam', img))
             else:
                 print("Could not decode video data")
 
@@ -73,15 +73,18 @@ async def send_data(websocket):
     print("start send_data()...")
     try:
         while True:
+            # print(image_queue.empty())
             if not image_queue.empty():
                 stream_type, img = image_queue.get()
                 _, buffer = cv2.imencode('.jpg', img)
                 message = (stream_type + ':').encode() + buffer.tobytes()
                 await websocket.send(message)
-
+                print(f"Sent {stream_type} image of size {len(buffer.tobytes())} bytes")
+            # print(diagnostics_queue.empty())
             if not diagnostics_queue.empty():
                 diagnostics_message = diagnostics_queue.get()
                 await websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
+                print(f"Sending diagnostics data: [{diagnostics_message}]")
 
             await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
     except websockets.exceptions.ConnectionClosed as e:
@@ -104,7 +107,7 @@ def receive_diagnostics():
             data, addr = sock.recvfrom(BUFFER_SIZE)
             diagnostics_message = data.decode()
             diagnostics_queue.put(diagnostics_message)
-            print(f"Received diagnostics data: {diagnostics_message} from {addr}")
+            print(f"Received diagnostics data:[{diagnostics_message}]")
 
 # Main function
 def main():
