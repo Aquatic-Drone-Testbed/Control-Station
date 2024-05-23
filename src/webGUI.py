@@ -141,17 +141,22 @@ def indexPage():
                 const imageBlob = new Blob([dataView.buffer.slice(7)], {type: 'image/jpeg'});
                 const imageUrl = URL.createObjectURL(imageBlob);
 
-                if (label === 'camera') {
-                    document.getElementById('cameraVideoFrame').src = imageUrl;
-                } else if (label === '_radar') {
-                    document.getElementById('radarVideoFrame').src = imageUrl;
-                } else if (label === '__slam') {
-                    document.getElementById('slamVideoFrame').src = imageUrl;
-                } else if (label === 'status') {
-                    document.getElementById('cameraStatus').innerText = data.includes('camera') ? 'Camera: Active' : 'Camera: Inactive';
-                    document.getElementById('gpsStatus').innerText = data.includes('gps') ? 'GPS: Active' : 'GPS: Inactive';
-                    document.getElementById('radarStatus').innerText = data.includes('radar') ? 'Radar: Active' : 'Radar: Inactive';
-                    document.getElementById('imuStatus').innerText = data.includes('imu') ? 'IMU: Active' : 'IMU: Inactive';
+                if (label === 'status') {
+                    const diagnosticsData = JSON.parse(data);
+                    document.getElementById('cameraStatus').innerText = diagnosticsData.camera;
+                    document.getElementById('gpsStatus').innerText = diagnosticsData.gps;
+                    document.getElementById('radarStatus').innerText = diagnosticsData.radar;
+                    document.getElementById('imuStatus').innerText = diagnosticsData.imu;
+                } else {
+                    const imageBlob = new Blob([dataView.buffer.slice(7)], {type: 'image/jpeg'});
+                    const imageUrl = URL.createObjectURL(imageBlob);
+                    if (label === 'camera') {
+                        document.getElementById('cameraVideoFrame').src = imageUrl;
+                    } else if (label === '_radar') {
+                        document.getElementById('radarVideoFrame').src = imageUrl;
+                    } else if (label === '__slam') {
+                        document.getElementById('slamVideoFrame').src = imageUrl;
+                    }
                 }
             };
             reader.readAsArrayBuffer(event.data);

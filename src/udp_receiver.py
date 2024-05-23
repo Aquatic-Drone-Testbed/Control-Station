@@ -11,6 +11,7 @@ import json
 GPS_PORT = 9001
 VIDEO_PORT = 9002
 RADAR_PORT = 9003
+SLAM_PORT = 9004
 DIAGNOSTIC_PORT = 20000
 BUFFER_SIZE = 65535
 
@@ -55,20 +56,34 @@ def receive_radar_video():
             else:
                 print("Could not decode radar data")
 
-# Function to send the video to webGUI using WebSocket
-async def send_video(websocket, path):
-    print("start send_video()...")
+def receive_slam_video():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(('', SLAM_PORT))
+        print(f"Listening for SLAM on port {SLAM_PORT}...")
+        while True:
+            data, addr = sock.recvfrom(BUFFER_SIZE)
+            print(f"Received SLAM packet from {addr}, {len(data)} bytes")
+            img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+            if img is not None:
+                image_queue.put(('__slam', img))
+            else:
+                print("Could not decode SLAM data")
+
+async def send_data(websocket):
+    print("start send_data()...")
     try:
         while True:
             if not image_queue.empty():
                 stream_type, img = image_queue.get()
                 _, buffer = cv2.imencode('.jpg', img)
                 message = (stream_type + ':').encode() + buffer.tobytes()
-                # print(f'sending message: {message}\n')
                 await websocket.send(message)
-            else:
-                # print("queue is empty")
-                await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
+
+            if not diagnostics_queue.empty():
+                diagnostics_message = diagnostics_queue.get()
+                await websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
+
+            await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
     except websockets.exceptions.ConnectionClosed as e:
         print(f'WebSocket connection closed: {e}')
 
@@ -87,20 +102,9 @@ def receive_diagnostics():
         print(f"Listening for diagnostics on port {DIAGNOSTIC_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received  data: {data.decode()} from {addr}")
-
-# if not diagnostics_queue.empty():
-#                 diagnostics = diagnostics_queue.get()
-#                 diagnostics_message = json.dumps({'type': 'diagnostics', 'data': diagnostics})
-#                 print(f"Sending diagnostics message: {diagnostics_message}")  # Log diagnostic data
-#                 await websocket.send(diagnostics_message)
-            
-            # if data == b"GPS Connected":
-            #     print(f"GPS is Connected from {addr}")
-            #     diagnostics_queue.put({'gps': 'Connected'})
-            # if data == b"GPS Not Connected":
-            #     print(f"GPS is Not Connected from {addr}")
-            #     diagnostics_queue.put({'gps': 'Not Connected'})
+            diagnostics_message = data.decode()
+            diagnostics_queue.put(diagnostics_message)
+            print(f"Received diagnostics data: {diagnostics_message} from {addr}")
 
 # Main function
 def main():
@@ -108,10 +112,11 @@ def main():
     threading.Thread(target=receive_gps, daemon=True).start()
     threading.Thread(target=receive_camera_video, daemon=True).start()
     threading.Thread(target=receive_radar_video, daemon=True).start()
+    threading.Thread(target=receive_slam_video, daemon=True).start()
     threading.Thread(target=receive_diagnostics, daemon=True).start()
     
     # Start WebSocket server
-    start_server = websockets.serve(send_video, 'localhost', 8765)
+    start_server = websockets.serve(send_data, 'localhost', 8765)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
 
