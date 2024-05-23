@@ -3,9 +3,10 @@ from pywebio.output import *
 from pywebio import start_server
 
 def indexPage():
-    # Title
-    put_text("Unmanned Surface Vessel Control Station").style('font-size: 24px; font-weight: bold; text-align: center; margin-top: 20px;')
+    # title
+    put_text("Unmanned-Surface-Vessel Control-Station").style('font-size: 24px; font-weight: bold; text-align: center; margin-top: 20px;')
 
+    # CSS to improve the layout and appearance
     style = """
     <style>
         /* CSS Reset */
@@ -32,58 +33,36 @@ def indexPage():
             color: #333;
         }
 
-        .container {
+        .videoContainer {
             display: grid;
             grid-template-columns: 1fr 1fr;
             grid-template-rows: 1fr 1fr;
-            gap: 20px;
-            width: 80%;
-            max-width: 1200px;
-            margin: 20px auto;
-        }
-
-        .videoSection, .diagnosticsSection {
-            padding: 10px;
-            box-sizing: border-box;
-        }
-
-        .videoFrame, .diagnosticsPanel { 
+            gap: 10px;
             width: 100%;
-            height: 100%;
+            padding: 0 20px;
+        }
+
+        .diagnosticContainer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+            padding: 20px;
             border: 5px solid #333; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             border-radius: 8px; 
+            background-color: #fff;
+            text-align: center;
         }
 
-        .diagnosticsPanel {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-gap: 10px;
-            padding: 10px;
+        .videoFrame, .diagnosticContainer { 
+            width: 100%;
         }
 
-        .diagnosticsCard {
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .diagnosticsCard.active {
-            background-color: #2ecc71;
-            color: #ffffff;
-        }
-
-        .diagnosticsCard.inactive {
-            background-color: #e74c3c;
-            color: #ffffff;
-        }
-
-        .diagnosticsIcon {
-            font-size: 24px;
-            margin-right: 10px;
+        .icon {
+            width: 50px;
+            height: 50px;
+            margin-bottom: 10px;
         }
 
         h3 { 
@@ -91,129 +70,107 @@ def indexPage():
             color: #444; 
             margin-bottom: 10px;
         }
-
-        @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto;
-                gap: 10px;
-            }
-
-            .diagnosticsPanel {
-                grid-template-columns: 1fr;
-            }
-        }
-
     </style>
     """
     
     put_html(style)
 
-    # GUI layout with HTML & JavaScript for WebSocket
-    gui_html = """
-    <div class="container">
-        <div class="videoSection">
+    # video GUI screen with HTML & JavaScript for WebSocket
+    video_html = """
+    <div class="videoContainer">
+        <div>
             <h3>Camera Video Stream</h3>
             <img id="cameraVideoFrame" class="videoFrame" src="" alt="Camera Video Stream">
         </div>
-        <div class="diagnosticsSection">
-            <h3>Diagnostics Panel</h3>
-            <div id="diagnosticsPanel" class="diagnosticsPanel">
-                <div class="diagnosticCard" id="cameraCard">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/camera.png" alt="Camera Icon">
-                    <div class="label">Camera</div>
-                    <div id="cameraStatus" class="value">Off</div>
+        <div>
+            <h3>Diagnostic Panel</h3>
+            <div class="diagnosticContainer">
+                <div>
+                    <img src="https://static-00.iconduck.com/assets.00/camera-icon-2048x1665-tjx7d3d2.png" class="icon" alt="Camera Icon">
+                    <p id="cameraStatus">Camera Status</p>
                 </div>
-                <div class="diagnosticCard" id="gpsCard">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/gps-device.png" alt="GPS Icon">
-                    <div class="label">GPS</div>
-                    <div id="gpsStatus" class="value">Not Connected</div>
+                <div>
+                    <img src="https://cdn-icons-png.flaticon.com/512/1248/1248333.png" class="icon" alt="GPS Icon">
+                    <p id="gpsStatus">GPS Status</p>
                 </div>
-                <div class="diagnosticCard" id="imuCard">
-                    <img src="https://img.icons8.com/ios-filled/50/000000/gyroscope.png" alt="IMU Icon">
-                    <div class="label">IMU</div>
-                    <div id="imuStatus" class="value">Off</div>
+                <div>
+                    <img src="https://cdn-icons-png.flaticon.com/512/4259/4259396.png" class="icon" alt="Radar Icon">
+                    <p id="radarStatus">Radar Status</p>
                 </div>
-                <div class="diagnosticCard" id="thrusterCard">
-                    <img src="https://cdn-icons-png.freepik.com/512/419/419108.png" alt="Thruster Icon">
-                    <div class="label">Thruster</div>
-                    <div id="thrusterStatus" class="value">Off</div> 
+                <div>
+                    <img src="https://sheatransitions.com/wp-content/uploads/2019/04/image-placeholder-icon-10.png" class="icon" alt="PLACEHOLDER Icon">
+                    <p id="PLACEHOLDERStatus">PLACEHOLDER Status</p>
                 </div>
             </div>
         </div>
-        <div class="videoSection">
-            <h3>Raw Radar Video Stream</h3>
-            <img id="rawRadarVideoFrame" class="videoFrame" src="" alt="Raw Radar Video Stream">
+        <div>
+            <h3>Radar Video Stream</h3>
+            <img id="radarVideoFrame" class="videoFrame" src="" alt="Radar Video Stream">
         </div>
-        <div class="videoSection">
-            <h3>Filtered Radar Video Stream</h3>
-            <img id="filteredRadarVideoFrame" class="videoFrame" src="" alt="Filtered Radar Video Stream">
+        <div>
+            <h3>SLAM Algorithm Stream</h3>
+            <img id="slamVideoFrame" class="videoFrame" src="" alt="SLAM Algorithm Stream">
         </div>
     </div>
     <script>
-    let cameraStatusElement = document.getElementById("cameraStatus");
-    let cameraCard = document.getElementById("cameraCard");
-    let gpsStatusElement = document.getElementById("gpsStatus");
-    let gpsCard = document.getElementById("gpsCard");
+        const socket = new WebSocket('ws://localhost:8765');
+        
+        socket.onopen = () => console.log("Connected established");
 
-    const socket = new WebSocket('ws://localhost:8765');
-    
-    socket.onmessage = function(event) {
-            const message = event.data;
-            if (message.startsWith("camera:")) {
-                const imgBlob = message.slice(7); // Get the image part of the message
-                const imgUrl = URL.createObjectURL(new Blob([imgBlob], { type: 'image/jpeg' }));
-                document.getElementById('cameraVideoFrame').src = imgUrl;
-            } 
-            if (message.startsWith("_radar:")) {
-                const imgBlob = message.slice(7); // Get the image part of the message
-                const imgUrl = URL.createObjectURL(new Blob([imgBlob], { type: 'image/jpeg' }));
-                document.getElementById('rawRadarVideoFrame').src = imgUrl;
-            }
-            else {
-                const data = JSON.parse(message);
-                if (data.type === "diagnostics") {
-                    updateDiagnostics(data.data);
-                }
+        socket.onclose = event => {
+            if (event.wasClean) {
+                console.log(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
+            } else {
+                console.log('Connection died');
             }
         };
 
-    function updateDiagnostics(diagnostics) {
-        if (diagnostics.camera) {
-            cameraStatusElement.textContent = diagnostics.camera;
-            cameraCard.classList.toggle('active', diagnostics.camera === 'On');
-            cameraCard.classList.toggle('inactive', diagnostics.camera !== 'On');
-        }
-        if (diagnostics.gps) {
-            gpsStatusElement.textContent = diagnostics.gps;
-            gpsCard.classList.toggle('active', diagnostics.gps === 'Connected');
-            gpsCard.classList.toggle('inactive', diagnostics.gps !== 'Connected');
-        }
-        // Update GPS status and other diagnostics similarly
-    }
+        socket.onerror = error => console.log(`WebSocket error: ${error.message}`);
 
-    socket.onopen = function() {
-        console.log("WebSocket connection established.");
-    };
+        socket.onmessage = event => {
+            const reader = new FileReader(); // event.data is a Blob of binary data
+            reader.onload = () => {
+                const arrayBuffer = reader.result;
+                const dataView = new DataView(arrayBuffer);
+                const decoder = new TextDecoder("ascii");
 
-    socket.onclose = function(event) {
-        console.log("WebSocket connection closed:", event);
-    };    
-</script>
+                const label = decoder.decode(dataView.buffer.slice(0, 6)).trim();
+                const data = decoder.decode(dataView.buffer.slice(7)).trim();
 
+                // Decode the first 6 bytes as the label, hard-code all type to be 6 bytes
+                const imageBlob = new Blob([dataView.buffer.slice(7)], {type: 'image/jpeg'});
+                const imageUrl = URL.createObjectURL(imageBlob);
+
+                if (label === 'camera') {
+                    document.getElementById('cameraVideoFrame').src = imageUrl;
+                } else if (label === '_radar') {
+                    document.getElementById('radarVideoFrame').src = imageUrl;
+                } else if (label === '__slam') {
+                    document.getElementById('slamVideoFrame').src = imageUrl;
+                } else if (label === 'status') {
+                    document.getElementById('cameraStatus').innerText = data.includes('camera') ? 'Camera: Active' : 'Camera: Inactive';
+                    document.getElementById('gpsStatus').innerText = data.includes('gps') ? 'GPS: Active' : 'GPS: Inactive';
+                    document.getElementById('radarStatus').innerText = data.includes('radar') ? 'Radar: Active' : 'Radar: Inactive';
+                    document.getElementById('imuStatus').innerText = data.includes('imu') ? 'IMU: Active' : 'IMU: Inactive';
+                }
+            };
+            reader.readAsArrayBuffer(event.data);
+        };
+
+    </script>
     """
 
-    put_html(gui_html)
+    put_html(video_html)
+
+# TODO:
+    # GPS data
+    # status of the USV
+        # speed
+        # acceleration
+        # telemetry
+    # radar mapping
+    # controller input
+    # a button to start the SLAM
 
 if __name__ == '__main__':
     start_server(indexPage, port=8080)
-
-# # TODO:
-#     # GPS data
-#     # status of the USV
-#         # speed
-#         # acceleration
-#         # telemetry
-#     # radar mapping
-#     # controller input
-#     # a button to start the SLAM

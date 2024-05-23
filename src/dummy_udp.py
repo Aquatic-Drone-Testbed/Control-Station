@@ -18,5 +18,14 @@ def send_dummy_data():
             print(f"Sent message: {message}")
             time.sleep(2.5)
 
+            message = b"Camera: On"
+            sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
+            print(f"Sent message: {message}")
+            time.sleep(2.5)
+            message = b"Camera: Off"
+            sock.sendto(message, (SERVER_IP, DIAGNOSTIC_PORT))
+            print(f"Sent message: {message}")
+            time.sleep(2.5)
+
 if __name__ == "__main__":
     send_dummy_data()

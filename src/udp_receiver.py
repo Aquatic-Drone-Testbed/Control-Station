@@ -32,11 +32,13 @@ def receive_camera_video():
         print(f"Listening for video on port {VIDEO_PORT}...")
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
-            print(f"Received video packet from {addr}, {len(data)} bytes")
+            # print(f"Received video packet from {addr}, {len(data)} bytes")
             img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
             if img is not None:
                 # Put the image into the queue instead of displaying it directly
                 image_queue.put(('camera', img))
+                # image_queue.put(('_radar', img))
+                # image_queue.put(('__slam', img))
             else:
                 print("Could not decode video data")
 
@@ -62,6 +64,7 @@ async def send_video(websocket, path):
                 stream_type, img = image_queue.get()
                 _, buffer = cv2.imencode('.jpg', img)
                 message = (stream_type + ':').encode() + buffer.tobytes()
+                # print(f'sending message: {message}\n')
                 await websocket.send(message)
             else:
                 # print("queue is empty")
@@ -78,23 +81,6 @@ def receive_gps():
             data, addr = sock.recvfrom(BUFFER_SIZE)
             print(f"Received GPS data: {data.decode()} from {addr}")
 
-# for test perpose
-def display_video():
-    cv2.namedWindow("Camera Stream", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("Radar Stream", cv2.WINDOW_NORMAL)
-    while True:
-        if not image_queue.empty():
-            stream_type, img = image_queue.get()
-            if stream_type == 'camera':
-                cv2.imshow('Camera Stream', img)
-            elif stream_type == '_radar':
-                cv2.imshow('Radar Stream', img)
-            
-            if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
-                break
-
-    cv2.destroyAllWindows()
-
 def receive_diagnostics():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind(('', DIAGNOSTIC_PORT))
@@ -102,7 +88,6 @@ def receive_diagnostics():
         while True:
             data, addr = sock.recvfrom(BUFFER_SIZE)
             print(f"Received  data: {data.decode()} from {addr}")
-
 
 # if not diagnostics_queue.empty():
 #                 diagnostics = diagnostics_queue.get()
@@ -129,7 +114,6 @@ def main():
     start_server = websockets.serve(send_video, 'localhost', 8765)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()
-    # display_video() # for test perpose, it can only run in main threading
 
 if __name__ == "__main__":
     main()
