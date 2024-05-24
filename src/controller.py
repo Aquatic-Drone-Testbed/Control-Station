@@ -57,7 +57,7 @@ class GamepadController:
 
     def process_event_joystick(self, event)->str:
         """Process individual gamepad joystick event."""
-        print(f"Joystick Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
+        # print(f"Joystick Event: {event.ev_type}, Code: {event.code}, State: {event.state}")
         controller_magnitude = round(int(event.state)/93.7)
         return f"CTRL:{event.code},{str(controller_magnitude)}"
 

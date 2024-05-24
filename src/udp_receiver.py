@@ -7,9 +7,9 @@ import threading
 import queue
 
 # Constants for easy adjustments
-GPS_PORT = 9001
-VIDEO_PORT = 9002
-RADAR_PORT = 9003
+GPS_PORT = 39001
+VIDEO_PORT = 39002
+RADAR_PORT = 39003
 BUFFER_SIZE = 65535
 
 # Create a queue for thread-safe image transfer
