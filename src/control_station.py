@@ -29,8 +29,8 @@ class ControlStation:
     GPS_PORT = 39001
     VIDEO_PORT = 39002
     RADAR_PORT = 39003
-    SLAM_PORT = 39004
-    DIAGNOSTIC_PORT = 20000
+    DIAGNOSTIC_PORT = 39004
+    SLAM_PORT = 39005
     BUFFER_SIZE = 65535
 
 
@@ -110,6 +110,7 @@ class ControlStation:
     
     
     def send_to_usv(self, data: bytes):
+        print(f'{data = }')
         num_bytes_sent = self.command_sock.sendto(data, (self.usv_ip, self.usv_port))
         logger.debug(f'sent ({num_bytes_sent} bytes) to {self.usv_ip}:{self.usv_port}')
     
@@ -135,6 +136,8 @@ class ControlStation:
                 if img is not None:
                     # Put the image into the queue instead of displaying it directly
                     self.image_queue.put(('camera', img))
+                    self.image_queue.put(('_radar', img))
+                    self.image_queue.put(('__slam', img))
                 else:
                     logger.error("Could not decode video data")
     
@@ -179,7 +182,7 @@ class ControlStation:
 
     # Function to send data to webGUI using WebSocket
     async def send_data(self, websocket):
-        logger.info("start send_video()...")
+        logger.info("start send_data()...")
         try:
             while True:
                 # print(image_queue.empty())
@@ -194,8 +197,8 @@ class ControlStation:
                     diagnostics_message = self.diagnostics_queue.get()
                     await websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
                     logger.debug(f'sending diagnostic message: {message}\n')
-                else:
-                    logger.error("queue is empty")
+                # else:
+                    # logger.error("queue is empty")
                 await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
         except websockets.exceptions.ConnectionClosed as e:
             logger.info(f'WebSocket connection closed: {e}')
@@ -210,9 +213,10 @@ def main():
     threading.Thread(target=ctrl_station.receive_camera_video, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_radar_video, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_slam_video, daemon=True).start()
+    threading.Thread(target=ctrl_station.receive_diagnostics, daemon=True).start()
     
     # Start WebSocket server
-    webserver = websockets.serve(ctrl_station.send_video, 'localhost', 8765)
+    webserver = websockets.serve(ctrl_station.send_data, 'localhost', 8765)
     asyncio.get_event_loop().run_until_complete(webserver)
     asyncio.get_event_loop().run_forever() # keep this process alive
 
