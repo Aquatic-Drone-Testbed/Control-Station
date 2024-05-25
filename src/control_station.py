@@ -11,6 +11,7 @@ import websockets
 import inputs
 import numpy as np
 import cv2
+import json
 
 class ControlStation:
     REQUEST_CONNECTION_STR = 'Ping'
@@ -24,10 +25,12 @@ class ControlStation:
     }
     LEFT_JOY_CODE = ['ABS_X', 'ABS_Y']
     LEFT_JOY_MAX_VAL = 32768
-    RIGHT_JOY_CODE = ['ABS_RX', 'ABS_RY']
+    # RIGHT_JOY_CODE = ['ABS_RX', 'ABS_RY']
     GPS_PORT = 39001
     VIDEO_PORT = 39002
     RADAR_PORT = 39003
+    SLAM_PORT = 39004
+    DIAGNOSTIC_PORT = 20000
     BUFFER_SIZE = 65535
 
 
@@ -39,6 +42,7 @@ class ControlStation:
         self.command_sock.settimeout(3.0)
         
         self.image_queue = queue.Queue()
+        self.diagnostics_queue = queue.Queue()
         
         self.connect_to_usv()
 
@@ -110,6 +114,15 @@ class ControlStation:
         logger.debug(f'sent ({num_bytes_sent} bytes) to {self.usv_ip}:{self.usv_port}')
     
     
+    # Function to receive and print GPS data
+    def receive_gps(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.GPS_PORT))
+            logger.info(f"Listening for GPS data on port {ControlStation.GPS_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received GPS data: {data.decode()} from {addr}")
+    
     # Function to receive and decode video data from boat
     def receive_camera_video(self):   
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -125,17 +138,7 @@ class ControlStation:
                 else:
                     logger.error("Could not decode video data")
     
-    
-    # Function to receive and print GPS data
-    def receive_gps(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.bind(('', ControlStation.GPS_PORT))
-            logger.info(f"Listening for GPS data on port {ControlStation.GPS_PORT}...")
-            while True:
-                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
-                logger.debug(f"Received GPS data: {data.decode()} from {addr}")
-    
-    
+    # Function to receive and decode radar data from boat
     def receive_radar_video(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.bind(('', ControlStation.RADAR_PORT))
@@ -149,42 +152,53 @@ class ControlStation:
                 else:
                     logger.error("Could not decode radar data")
     
+    # Function to receive and decode slam data from boat
+    def receive_slam_video(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.SLAM_PORT))
+            logger.info(f"Listening for slam on port {ControlStation.SLAM_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received slam packet from {addr}, {len(data)} bytes")
+                img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    self.image_queue.put(('__slam', img))
+                else:
+                    logger.error("Could not decode slam data")        
     
-    # for test perpose
-    def display_video(self):
-        cv2.namedWindow("Camera Stream", cv2.WINDOW_NORMAL)
-        cv2.namedWindow("Radar Stream", cv2.WINDOW_NORMAL)
-        while True:
-            if not self.image_queue.empty():
-                stream_type, img = self.image_queue.get()
-                if stream_type == 'camera':
-                    cv2.imshow('Camera Stream', img)
-                elif stream_type == '_radar':
-                    cv2.imshow('Radar Stream', img)
-                
-                if cv2.waitKey(1) & 0xFF == ord('q'):  # Press 'q' to quit
-                    break
+    # Function to receive and decode diagnostic data from boat
+    def receive_diagnostics(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.DIAGNOSTIC_PORT))
+            logger.info(f"Listening for diagnostics on port {ControlStation.DIAGNOSTIC_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received diagnostic packet from {addr}, {len(data)} bytes")
+                diagnostics_message = data.decode()
+                self.diagnostics_queue.put(diagnostics_message)
 
-        cv2.destroyAllWindows()
-        
-        
-    # Function to send the video to webGUI using WebSocket
-    async def send_video(self, websocket, path):
+    # Function to send data to webGUI using WebSocket
+    async def send_data(self, websocket):
         logger.info("start send_video()...")
         try:
             while True:
+                # print(image_queue.empty())
                 if not self.image_queue.empty():
                     stream_type, img = self.image_queue.get()
                     _, buffer = cv2.imencode('.jpg', img)
                     message = (stream_type + ':').encode() + buffer.tobytes()
-                    logger.debug(f'sending message: {message}\n')
+                    logger.debug(f'sending image message: {message}\n')
                     await websocket.send(message)
+                # print(diagnostics_queue.empty())
+                if not self.diagnostics_queue.empty():
+                    diagnostics_message = self.diagnostics_queue.get()
+                    await websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
+                    logger.debug(f'sending diagnostic message: {message}\n')
                 else:
                     logger.error("queue is empty")
-                    await asyncio.sleep(0.1)  # Relax the loop when the queue is empty.
+                await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
         except websockets.exceptions.ConnectionClosed as e:
             logger.info(f'WebSocket connection closed: {e}')
-
 
 def main():
     ctrl_station = ControlStation(usv_ip='192.168.0.111', usv_port=39000)
@@ -192,9 +206,10 @@ def main():
     threading.Thread(target=ctrl_station.send_controls, daemon=True).start()
     
     # Start the threads for video and GPS data reception
-    threading.Thread(target=ctrl_station.receive_camera_video, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_gps, daemon=True).start()
+    threading.Thread(target=ctrl_station.receive_camera_video, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_radar_video, daemon=True).start()
+    threading.Thread(target=ctrl_station.receive_slam_video, daemon=True).start()
     
     # Start WebSocket server
     webserver = websockets.serve(ctrl_station.send_video, 'localhost', 8765)
