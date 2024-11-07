@@ -3,7 +3,7 @@ Control station code for remote operation of Unmanned-Surface-Vehicle(USV).
 
 # install the required packages
 
-crate a new conda environment with the following command
+create a new conda environment with the following command
 ```bash
     conda create --name capstone python=3.11.7
 ```
@@ -18,9 +18,16 @@ install the libraries from the `requirements.txt` file (recommended)
     pip install -r requirements.txt
 ```
 
-after install a new library, update the `requirements.txt` file with the following command
+after installing a new library, update the `requirements.txt` file with the following commands
 ```bash
-   pip freeze > requirements.txt
+   ~~pip freeze > requirements.txt~~ 
+   Note from Alex: pip freeze only saves the packages that are installed with pip install in your environment.
+   Also, pip freeze saves all packages in the environment including those that you don't use in your current project (if you don't have virtualenv)
+
+   So it is recommended that you use this instead:
+
+   pip install pipreqs
+   pipreqs /path/to/project
 ```
 
 

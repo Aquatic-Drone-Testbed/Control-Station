@@ -7,4 +7,4 @@ python3 ./src/control_station.py &
 python3 ./src/webGUI.py &
 
 # Keep this script alive forever
-sleep infinity
+while true; do sleep 86400; done
