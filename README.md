@@ -20,9 +20,11 @@ install the libraries from the `requirements.txt` file (recommended)
 
 after installing a new library, update the `requirements.txt` file with the following commands
 ```bash
-   ~~pip freeze > requirements.txt~~ 
-   Note from Alex: pip freeze only saves the packages that are installed with pip install in your environment.
-   Also, pip freeze saves all packages in the environment including those that you don't use in your current project (if you don't have virtualenv)
+   pip freeze > requirements.txt 
+   Note from Alex: pip freeze only saves the packages that are installed with pip install in
+   your environment.
+   Also, pip freeze saves all packages in the environment including those that you don't use in
+   your current project (if you don't have virtualenv)
 
    So it is recommended that you use this instead:
 
