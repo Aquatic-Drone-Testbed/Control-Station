@@ -7,21 +7,29 @@ import threading
 import queue
 import asyncio
 import websockets
+#from PIL import Image as PILImage
+
+from websockets.sync.client import connect
+
 
 import inputs
 import numpy as np
 import cv2
 import json
 
+ctrl_station = None
+
 class ControlStation:
     REQUEST_CONNECTION_STR = 'Ping'
     ACKNOWLEDGE_CONNECTION_STR = 'Pong'
     # (code, state) -> command
-    KEY_TABLE = {
+    #EAST=B, NORTH=X, WEST=Y, SOUTH=A
+    KEY_TABLE = { 
         ('BTN_EAST',  0): 'radar:toggle_scan',
         ('BTN_SOUTH', 0): 'cam:toggle_cam',
         ('BTN_TR',  0): 'radar:zoom_in',
         ('BTN_TL', 0): 'radar:zoom_out',
+        ('BTN_NORTH', 0): 'navmod:toggle_navmod',
     }
     LEFT_JOY_CODE = ['ABS_X', 'ABS_Y']
     LEFT_JOY_MAX_VAL = 32768
@@ -29,10 +37,14 @@ class ControlStation:
     GPS_PORT = 39001
     VIDEO_PORT = 39002
     RADAR_PORT = 39003
+    LIDAR_PORT = 39006
     DIAGNOSTIC_PORT = 39004
     SLAM_PORT = 39005
+    NAV2_PORT = 9999
     BUFFER_SIZE = 65535
 
+    manual_override = True #for direct control
+    m_state = False
 
     def __init__(self, usv_ip, usv_port) -> None:
         self.usv_ip = usv_ip
@@ -40,6 +52,10 @@ class ControlStation:
 
         self.command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.command_sock.settimeout(3.0)
+        
+        self.nav_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.nav_sock.bind(('', ControlStation.NAV2_PORT))
+        #self.nav_sock.settimeout(0.0)
         
         self.image_queue = queue.Queue()
         self.diagnostics_queue = queue.Queue()
@@ -61,27 +77,72 @@ class ControlStation:
             if data.decode() == ControlStation.ACKNOWLEDGE_CONNECTION_STR: break
 
         logger.info(f'Established connection to USV at {self.usv_ip}:{self.usv_port}')
+
+    # Function to receive NAV2 commands
+    def receive_nav2(self) -> str:
+        while(True):
+            command_list = []
+            if (not ControlStation.manual_override):
+                    data, addr = self.nav_sock.recvfrom(4096)
+            if (not ControlStation.manual_override): #Test under lock for blocking receive
+                    logger.debug(f"Received NAV2 data: {data.decode()} from {addr}")
+                    #print(f"Received NAV2 data: {data.decode()} from {addr}")
+                    try:
+                        parts = data.decode().strip().split(',')
+                        linear_x, linear_y, linear_z = map(float, parts[0:3])
+                        angular_x, angular_y, angular_z = map(float, parts[3:6])
+                        command_list.append(self.get_command_from_event(ev_type='Absolute',
+                                                code='ABS_Y',
+                                                state=-1*int((linear_x/0.3) * ControlStation.LEFT_JOY_MAX_VAL))) #linear_x/0.26 MIN DENOM
+                        command_list.append(self.get_command_from_event(ev_type='Absolute',
+                                                code='ABS_X',
+                                                state=-1*int((angular_z/1.3) * ControlStation.LEFT_JOY_MAX_VAL))) #angular_z/1.0 MIN DENOM
+                        self.send_to_usv(data=command_list[0].encode())
+                        self.send_to_usv(data=command_list[1].encode())
+                    except ValueError as e:
+                        print(f"Invalid message format: {data} | Error: {e}")
+                        
     
-    
-    def send_controls(self):
+    def send_controls(self): #MANUAL OVERRIDE DATA PASSING HERE
         while True:
             event_list = self.get_controller_events()
-            if not event_list: continue
+            if(ControlStation.manual_override):
+                if not event_list: continue
+                command_list = self.get_command_list(event_list)
+                for command_str in command_list:
+                    if not command_str: continue
+                    self.send_to_usv(data=command_str.encode())
+
+                #command_list is list of ( f'ctrl:{code},{magnitude}' ) 
+
+    
+    
+    def get_controller_events(self) -> str: #MANUAL OVERRIDE TOGGLE CODE HERE
+        try:
+            events = inputs.get_gamepad()
+            for event in events:
+                if event.code == 'BTN_WEST':
+                    if event.state == 1 and not ControlStation.m_state:
+                        ControlStation.manual_override = not ControlStation.manual_override
+                        logger.info(f"Manual Override: {ControlStation.manual_override}")
+                        #logger.info(f"m_state: {ControlStation.m_state}")
+                        ControlStation.m_state = True
+                    elif event.state == 0:
+                        # Button released
+                        ControlStation.m_state = False
+            return events
+        except inputs.UnpluggedError as e:
+            logger.error(f'{e}')
+            time.sleep(1)
+            return
             
-            command_list = self.get_command_list(event_list)
-            for command_str in command_list:
-                if not command_str: continue
-                self.send_to_usv(data=command_str.encode())
-    
-    
-    def get_controller_events(self) -> str:
+    def get_controller_events_old(self) -> str:
         try:
             return inputs.get_gamepad()
         except inputs.UnpluggedError as e:
             logger.error(f'{e}')
             time.sleep(1)
             return
-    
     
     def get_command_list(self, event_list: list[inputs.InputEvent]) -> list[str]:
         logger.debug(f'{len(event_list) = }')
@@ -110,7 +171,7 @@ class ControlStation:
     
     
     def send_to_usv(self, data: bytes):
-        print(f'{data = }')
+        #print(f'{data = }')
         num_bytes_sent = self.command_sock.sendto(data, (self.usv_ip, self.usv_port))
         logger.debug(f'sent ({num_bytes_sent} bytes) to {self.usv_ip}:{self.usv_port}')
     
@@ -136,8 +197,8 @@ class ControlStation:
                 if img is not None:
                     # Put the image into the queue instead of displaying it directly
                     self.image_queue.put(('camera', img))
-                    self.image_queue.put(('_radar', img))
-                    self.image_queue.put(('__slam', img))
+                    # self.image_queue.put(('_radar', img))
+                    # self.image_queue.put(('__slam', img))
                 else:
                     logger.error("Could not decode video data")
     
@@ -154,9 +215,22 @@ class ControlStation:
                     self.image_queue.put(('_radar', img))
                 else:
                     logger.error("Could not decode radar data")
+                    
+    def receive_lidar_video(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.LIDAR_PORT))
+            logger.info(f"Listening for LiDAR on port {ControlStation.LIDAR_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received LiDAR packet from {addr}, {len(data)} bytes")
+                img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    self.image_queue.put(('_lidar', img))
+                else:
+                    logger.error("Could not decode LiDAR data")
     
     # Function to receive and decode slam data from boat
-    def receive_slam_video(self):
+    def receive_slam_video(self): #Not in USE
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.bind(('', ControlStation.SLAM_PORT))
             logger.info(f"Listening for slam on port {ControlStation.SLAM_PORT}...")
@@ -167,7 +241,22 @@ class ControlStation:
                 if img is not None:
                     self.image_queue.put(('__slam', img))
                 else:
-                    logger.error("Could not decode slam data")        
+                    logger.error("Could not decode slam data")   
+                    
+    # Function to receive and decode slam data from boat
+    def receive_slam_data(self): #Not in USE
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.SLAM_PORT))
+            logger.info(f"Listening for slam on port {ControlStation.SLAM_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received slam packet from {addr}, {len(data)} bytes")
+                
+                #img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                #if img is not None:
+                    #self.image_queue.put(('__slam', img))
+                #else:
+                    #logger.error("Could not decode slam data")  
     
     # Function to receive and decode diagnostic data from boat
     def receive_diagnostics(self):
@@ -182,6 +271,7 @@ class ControlStation:
 
     # Function to send data to webGUI using WebSocket
     async def send_data(self, websocket):
+        print(f"Startind Data Send to WebSocket")
         logger.info("start send_data()...")
         try:
             while True:
@@ -190,32 +280,84 @@ class ControlStation:
                     stream_type, img = self.image_queue.get()
                     _, buffer = cv2.imencode('.jpg', img)
                     message = (stream_type + ':').encode() + buffer.tobytes()
-                    logger.debug(f'sending image message: {message}\n')
+                    #logger.debug(f'sending image message: {message}\n')
                     await websocket.send(message)
                 # print(diagnostics_queue.empty())
                 if not self.diagnostics_queue.empty():
                     diagnostics_message = self.diagnostics_queue.get()
                     await websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
-                    logger.debug(f'sending diagnostic message: {message}\n')
+                    #logger.debug(f'sending diagnostic message: {message}\n')
                 # else:
                     # logger.error("queue is empty")
                 await asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
         except websockets.exceptions.ConnectionClosed as e:
             logger.info(f'WebSocket connection closed: {e}')
 
+    # Test function to send/recv image from radio (CAN DELETE)
+    def test_receive_radar_video(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('', ControlStation.RADAR_PORT))
+            logger.info(f"Listening for radar on port {ControlStation.RADAR_PORT}...")
+            while True:
+                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
+                logger.debug(f"Received radar packet from {addr}, {len(data)} bytes")
+                img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    cv2.imwrite("/home/seamate1/Control-Station/test_img.jpg", img)
+                    print("Received image and saving")
+                    self.image_queue.put(('_radar', img))
+
+                    try:
+                        while True:
+                            # print(image_queue.empty())
+                            if not self.image_queue.empty():
+                                stream_type, img = self.image_queue.get()
+                                _, buffer = cv2.imencode('.jpg', img)
+                                message = (stream_type + ':').encode() + buffer.tobytes()
+                                logger.debug(f'sending image message: {message}\n')
+                                websocket.send(message)
+                            # print(diagnostics_queue.empty())
+                            if not self.diagnostics_queue.empty():
+                                diagnostics_message = self.diagnostics_queue.get()
+                                websocket.send(json.dumps({'type': 'diagnostics', 'data': diagnostics_message}))
+                                logger.debug(f'sending diagnostic message: {message}\n')
+                            # else:
+                                # logger.error("queue is empty")
+                            asyncio.sleep(0.01)  # Relax the loop when the queue is empty.
+                    except websockets.exceptions.ConnectionClosed as e:
+                        logger.info(f'WebSocket connection closed: {e}')
+
+                else:
+                    logger.error("Could not decode radar data")
+
 def main():
-    ctrl_station = ControlStation(usv_ip='192.168.0.111', usv_port=39000)
+    print("Starting MAIN")
+    global ctrl_station
+    ctrl_station = ControlStation(usv_ip='192.168.0.112', usv_port=39000)
+    #use 192.168.1.104 for WiFi, 192.168.0.111 for mesh radio Pi4, 192.168.0.112 for mesh radio Pi5
+    
     # Start the thread for controller
     threading.Thread(target=ctrl_station.send_controls, daemon=True).start()
+    
+    # Start the thread for NAV2 controls
+    threading.Thread(target=ctrl_station.receive_nav2, daemon=True).start()
     
     # Start the threads for video and GPS data reception
     threading.Thread(target=ctrl_station.receive_gps, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_camera_video, daemon=True).start()
-    threading.Thread(target=ctrl_station.receive_radar_video, daemon=True).start()
-    threading.Thread(target=ctrl_station.receive_slam_video, daemon=True).start()
+    threading.Thread(target=ctrl_station.receive_radar_video, daemon=True).start()#
+    threading.Thread(target=ctrl_station.receive_lidar_video, daemon=True).start()#
+    #threading.Thread(target=ctrl_station.receive_slam_video, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_diagnostics, daemon=True).start()
     
+    
+    # CAN DELETE LATER
+    # threading.Thread(target=ctrl_station.test_receive_radar_video, daemon=True).start()
+
+    
+    
     # Start WebSocket server
+    print(f"About to Send to WebSocket")
     webserver = websockets.serve(ctrl_station.send_data, 'localhost', 8765)
     asyncio.get_event_loop().run_until_complete(webserver)
     asyncio.get_event_loop().run_forever() # keep this process alive
