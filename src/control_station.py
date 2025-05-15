@@ -7,6 +7,7 @@ import threading
 import queue
 import asyncio
 import websockets
+import re
 #from PIL import Image as PILImage
 
 from websockets.sync.client import connect
@@ -40,6 +41,7 @@ class ControlStation:
     LIDAR_PORT = 39006
     DIAGNOSTIC_PORT = 39004
     SLAM_PORT = 39005
+    SPOKE_PORT = 39007
     NAV2_PORT = 9999
     BUFFER_SIZE = 65535
 
@@ -243,20 +245,34 @@ class ControlStation:
                 else:
                     logger.error("Could not decode slam data")   
                     
-    # Function to receive and decode slam data from boat
-    def receive_slam_data(self): #Not in USE
+    # Function to receive and decode slam spoke data from boat
+    def receive_slam_spoke(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.bind(('', ControlStation.SLAM_PORT))
-            logger.info(f"Listening for slam on port {ControlStation.SLAM_PORT}...")
+            sock.bind(('', ControlStation.SPOKE_PORT))
+            logger.info(f"Listening for slam spokes on port {ControlStation.SPOKE_PORT}...")
+            last_spoke = -1
+            radar_data_str = ''
             while True:
                 data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
-                logger.debug(f"Received slam packet from {addr}, {len(data)} bytes")
-                
-                #img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-                #if img is not None:
-                    #self.image_queue.put(('__slam', img))
-                #else:
-                    #logger.error("Could not decode slam data")  
+                logger.debug(f"Received spoke packet from {addr}, {len(data)} bytes")
+                #print("received packet")
+                data_str = data.decode()
+                match = re.search(r'Q_Header<\((.*?)\)>',data_str)
+                if match:
+                    q_header = match.group(1)
+                    elements = [x for x in q_header.split(',')]
+                    if int(elements[7]) == 0 or int(elements[7]) <= last_spoke:
+                        with open('/home/seamate1/ControlStationFiles/Radar_Data/current_radar_scan.txt','w') as file:
+                            file.write(radar_data_str)                    
+                        with open('/home/seamate1/ControlStationFiles/Radar_Data/all_radar_scan.txt','a') as f:
+                            f.write(radar_data_str)
+                        radar_data_str = ''
+                        radar_data_str += data_str
+                        last_spoke = int(elements[7])
+                    else:
+                        radar_data_str += data_str
+                        last_spoke = int(elements[7])
+
     
     # Function to receive and decode diagnostic data from boat
     def receive_diagnostics(self):
@@ -271,7 +287,7 @@ class ControlStation:
 
     # Function to send data to webGUI using WebSocket
     async def send_data(self, websocket):
-        print(f"Startind Data Send to WebSocket")
+        print(f"Starting Data Send to WebSocket")
         logger.info("start send_data()...")
         try:
             while True:
@@ -348,6 +364,7 @@ def main():
     threading.Thread(target=ctrl_station.receive_radar_video, daemon=True).start()#
     threading.Thread(target=ctrl_station.receive_lidar_video, daemon=True).start()#
     #threading.Thread(target=ctrl_station.receive_slam_video, daemon=True).start()
+    threading.Thread(target=ctrl_station.receive_slam_spoke, daemon=True).start()
     threading.Thread(target=ctrl_station.receive_diagnostics, daemon=True).start()
     
     
