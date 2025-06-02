@@ -19,6 +19,7 @@ import cv2
 import json
 
 import zlib
+import struct
 
 ctrl_station = None
 
@@ -56,6 +57,14 @@ class ControlStation:
     def __init__(self, usv_ip, usv_port) -> None:
         self.usv_ip = usv_ip
         self.usv_port = usv_port
+        
+        self.tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.tcp_sock.bind(('192.168.0.110', ControlStation.SPOKE_PORT)) # CHANGE TO LOCAL IP AS NEEDED
+        logger.info(f"Listening for slam spokes on port {ControlStation.SPOKE_PORT}...")
+        self.tcp_sock.listen(1)
+
+        self.tcp_cSock = None
 
         self.command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.command_sock.settimeout(3.0)
@@ -75,17 +84,23 @@ class ControlStation:
 
 
     def connect_to_usv(self):
+        tcp_connected = False
         while True:
             logger.info(f'Requesting connection to USV at {self.usv_ip}:{self.usv_port}')
             self.send_to_usv(data=ControlStation.REQUEST_CONNECTION_STR.encode())
             
-            try:
-                data, server_address = self.command_sock.recvfrom(4096)
-            except socket.timeout:
-                logger.warning(f'Connection request timed out')
-                continue
+            if not tcp_connected:
+                self.tcp_cSock, addr = self.tcp_sock.accept()
+                tcp_connected = True
+                break
 
-            if data.decode() == ControlStation.ACKNOWLEDGE_CONNECTION_STR: break
+            # try:
+            #     data, server_address = self.command_sock.recvfrom(4096)
+            # except socket.timeout:
+            #     logger.warning(f'Connection request timed out')
+            #     continue
+
+            # if data.decode() == ControlStation.ACKNOWLEDGE_CONNECTION_STR: break
 
         logger.info(f'Established connection to USV at {self.usv_ip}:{self.usv_port}')
 
@@ -104,7 +119,7 @@ class ControlStation:
                         angular_x, angular_y, angular_z = map(float, parts[3:6])
                         command_list.append(self.get_command_from_event(ev_type='Absolute',
                                                 code='ABS_Y',
-                                                state=-1*int((linear_x/0.36) * ControlStation.LEFT_JOY_MAX_VAL))) #linear_x/0.26 MIN DENOM
+                                                state=-1*int((linear_x/0.40) * ControlStation.LEFT_JOY_MAX_VAL))) #linear_x/0.26 MIN DENOM
                         command_list.append(self.get_command_from_event(ev_type='Absolute',
                                                 code='ABS_X',
                                                 state=-1*int((angular_z/1.0) * ControlStation.LEFT_JOY_MAX_VAL))) #angular_z/1.0 MIN DENOM
@@ -254,42 +269,82 @@ class ControlStation:
                 else:
                     logger.error("Could not decode slam data")   
                     
+    #Receive functions to ensure TCP socket to application delivery
+                    
+    def recv_all(self, sock, n):
+        """Receive exactly n bytes from the socket."""
+        data = b""
+        while len(data) < n:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                raise ConnectionError("Socket connection closed")
+            data += chunk
+        return data
+
+#    def recv_string_no_decode(self, sock):
+#        # Read 4-byte length prefix
+#        raw_len = self.recv_all(sock, 4)
+#        msg_len = struct.unpack('!I', raw_len)[0]
+#        # Read the actual string bytes
+#        data = self.recv_all(sock, msg_len)
+#        data = zlib.decompress(data)
+#        return data #.decode('utf-8')
+        
+    def recv_string_no_decode(self, sock):
+        # Read 4-byte length prefix and then read byte stream
+        try:
+            raw_len = self.recv_all(sock, 4)
+            msg_len = struct.unpack('!I', raw_len)[0]
+            data = self.recv_all(sock, msg_len)
+            # Decompress (or not, depending on settings)
+            try:
+                #return zlib.decompress(data)
+                return data
+            except zlib.error as e:
+                print(f"[ZLIB ERROR] Failed to decompress data: {e}")
+                return "NO DATA"  # or handle as needed
+
+        except (ConnectionError, struct.error) as e:
+            print(f"[SOCKET ERROR] Failed to receive message: {e}")
+            return "NO DATA"
+        
+        
     # Function to receive and decode slam spoke data from boat
     def receive_slam_spoke(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.bind(('', ControlStation.SPOKE_PORT))
-            logger.info(f"Listening for slam spokes on port {ControlStation.SPOKE_PORT}...")
-            last_spoke = -1
-            radar_data_str = ''
-            while True:
-                data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE)
-                logger.debug(f"Received spoke packet from {addr}, {len(data)} bytes")
-                #print("received packet")
-                #data_str = zlib.decompress(data).decode()
-                #print(data_str)
-                #self.imu_sock.sendto(data_str.encode(), ('', ControlStation.IMU_PORT)) #Pass spoke to navigation stack to provide IMU data
-                self.imu_sock.sendto(data, ('', ControlStation.IMU_PORT))
-                data_str = data.decode()
-                match = re.search(r'Q_Header<\((.*?)\)>',data_str)
-                if match: #put the IMU transfer code here
-                    q_header = match.group(1)
-                    elements = [x for x in q_header.split(',')]
-                    if int(elements[7]) != last_spoke+1 and int(elements[7]) != 0 and int(elements[7]) != last_spoke:
-                        print(f'Dropped Spoke! Last: {last_spoke} Current: {int(elements[7])}')
-                    if int(elements[7]) == 0 or int(elements[7]) <= last_spoke:
-                        with open(f'/home/seamate1/ControlStationFiles/Radar_Data/frames/frame{ControlStation.frame_num:05d}.txt','w') as file:
-                            file.write(radar_data_str)                    
-                        #with open('/home/seamate1/ControlStationFiles/Radar_Data/all_radar_scan.txt','a') as f:
-                        #    f.write(radar_data_str)
-                        ControlStation.frame_num+=1
-                        radar_data_str = ''
-                        radar_data_str += data_str
-                        last_spoke = int(elements[7])
-                    else:
-                        radar_data_str += data_str
-                        last_spoke = int(elements[7])
+        last_spoke = -1
+        radar_data_str = ''
+        while True:
+            # data, addr = sock.recvfrom(ControlStation.BUFFER_SIZE) #UDP
+            #data = self.tcp_cSock.recv(ControlStation.BUFFER_SIZE) #TCP OLD
+            data = self.recv_string_no_decode(self.tcp_cSock) # TCP NEW
+            logger.debug(f"Received spoke packet, {len(data)} bytes")
+            #print("received packet")
+            #data_str = zlib.decompress(data).decode()
+            #print(data_str)
+            #self.imu_sock.sendto(data_str.encode(), ('', ControlStation.IMU_PORT)) #Pass spoke to navigation stack to provide IMU data
+            self.imu_sock.sendto(data, ('', ControlStation.IMU_PORT))
+            data_str = data.decode()
+            #print(data_str)
+            match = re.search(r'Q_Header<\((.*?)\)>',data_str)
+            if match: #put the IMU transfer code here
+                q_header = match.group(1)
+                elements = [x for x in q_header.split(',')]
+                if int(elements[7]) != last_spoke+1 and int(elements[7]) != 0:
+                    print(f'Dropped Spoke! Last: {last_spoke} Current: {int(elements[7])}')
+                if int(elements[7]) == 0 or int(elements[7]) <= last_spoke:
+                    with open(f'/home/seamate1/ControlStationFiles/Radar_Data/frames/frame{ControlStation.frame_num:05d}.txt','w') as file:
+                        file.write(radar_data_str)                    
+                    #with open('/home/seamate1/ControlStationFiles/Radar_Data/all_radar_scan.txt','a') as f:
+                    #    f.write(radar_data_str)
+                    ControlStation.frame_num+=1
+                    radar_data_str = ''
+                    radar_data_str += data_str
+                    last_spoke = int(elements[7])
                 else:
-                    print("NO MATCH!")
+                    radar_data_str += data_str
+                    last_spoke = int(elements[7])
+            else:
+                print("NO MATCH!")
     
     # Function to receive and decode diagnostic data from boat
     def receive_diagnostics(self):
